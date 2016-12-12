@@ -15,11 +15,11 @@ client.on('error',function(err){
 })
 
 
-app.set('port', (process.env.PORT || 5000));
+app.set('port', (process.env.PORT || 4000));
 
 app.use(responseTime());
 
-app.get('/api/:username', function(req, res){
+app.get('/stars/:username', function(req, res){
     var username = req.params.username;
 
     // use the redis client to get the total number of stars associated to that
@@ -39,7 +39,7 @@ app.get('/api/:username', function(req, res){
                     // with an expiry of 1 minute (60s)
                     client.setex(username, 60, totalStars);
                     // return the result to the user
-                    res.send({ "totalStars": totalStars, "source": "GitHub API" });
+                    res.send({ "totalStars": totalStars, "source": "GitHub API", 'addedBy' : 'manoj' });
                 }).catch(function(response) {
                     if (response.status === 404){
                         res.send('The GitHub username could not be found. Try "coligo-io" as an example!');
@@ -52,13 +52,51 @@ app.get('/api/:username', function(req, res){
     });
 });
 
+
+app.get('/repo/:username', function(req,res){
+    var username = req.params.username;
+    console.log(username);
+    client.get('repo'+username, function(err, result){
+        if(result){
+            res.send(result);
+        }else{
+            getRepositories(username).then(getRepo).then(function(resu){
+                console.log('repo' + resu);
+                //res.send( );
+                var data = getRepoName(resu.data)
+                client.setex('repo'+username, 60, data);
+                res.send(data);
+            })
+        }
+    });
+});
+
 app.listen(app.get('port'), function(){
     console.log('Server listening on port:', app.get('port'));
 });
 
+function getRepoName(data){
+    var names = [];
+     data.forEach(function(element){
+        names.push(element.name);
+    });
+    console.log(names);
+    return names;
+}
+
+function getRepositories(user){
+    var githubEndpoint = 'https://api.github.com/users/' + user + '/repos' + '?per_page=100';
+    return axios.get(githubEndpoint);
+}
+
 function getUserRepositories(user) {
     var githubEndpoint = 'https://api.github.com/users/' + user + '/repos' + '?per_page=100';
     return axios.get(githubEndpoint);
+}
+
+
+function getRepo(repo){
+    return repo;
 }
 
 // add up all the stars and return the total number of stars across all repositories
